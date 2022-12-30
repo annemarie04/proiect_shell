@@ -441,45 +441,147 @@ void exec(char **arg, int nr_args){
 
 int main()
 {
+    output = malloc(1024 * sizeof(char));
     char comm_line[400];
     create_shell();
+
     while(1){
+        //verificam calea 
+        if (getcwd(path, sizeof(path)) != NULL) 
+        {
+            printf("SHELL: %s$ ", path);
+        } 
+        else 
+        {
+            error = 2;
+        }
+
+
         ///citirea comenzii
         char* buf = NULL;
         size_t buflen = 0;
+        error=0;
         char** argv = malloc(sizeof(char*)*4);
+
         printf("> ");
         getline(&buf, &buflen, stdin);
         printf("> %s", buf);
-        if(strcmp(buf, "stop\n") == 0){
-            exit(0);
+        //if(strcmp(buf, "stop\n") == 0){
+        //    exit(0);
+        //}
+
+        //int argc = parsingSpace(buf, argv);
+        int nr=0;
+        
+        // despartim comanda in cuvinte 
+        char *cuv= malloc(sizeof(char)* 1024);
+        cuv= strtok(buf, " ");
+       
+
+        while(cuv !=NULL){
+            char* c= malloc(sizeof(char)*1024);
+            
+            
+            
+            strcpy(c, cuv);
+            
+
+            if (!strcmp(c, "||"))
+            {
+                free(output);
+                output = malloc(1024 * sizeof(char));
+                exec(argv, nr);
+
+                if(error)
+                {
+                    // daca a intampinat o eroare o va ignora
+                    // deoarece doar prima comanda corecta va rula
+                    error = 0;
+                    nr = 0;// o luam de la capat pt urmatoarea
+                    cuv = strtok(NULL, " ");
+                    continue;
+                }
+                else
+                {
+                    // cand gaseste prima comanda care nu da eroare le va ignora pe restul
+                   nr = 0;
+                   while(cuv != NULL)
+                    {
+                        strcpy(c, cuv);
+                        if(!strcmp(c, "&&"))
+                        {
+                            break;
+                        }
+                        cuv = strtok(NULL, " ");
+                    }
+                    if (cuv == NULL) error = -1;
+                }
+            }
+            else if (!strcmp(c, "&&"))
+            {
+                free(output);
+                output = malloc(1024 * sizeof(char));
+                exec(argv, nr);
+                
+                // la prima eroare intalnita va opri executia
+                if (error != 0)
+                {
+                    break;
+                }
+
+                nr = 0;
+            }
+            else {
+                argv[nr] = c;
+                nr+=1;
+            }
+
+            cuv = strtok(NULL, " ");
         }
 
-        int argc = parsingSpace(buf, argv);
-        for(int i = 0; i < argc; ++i){
-            printf("> arg %d = %s\n", i, argv[i]);
+        // daca nu am avut o eroare
+        // va executa comanda curenta
+        if (error == 0)
+        {
+            free(output);
+            output = malloc(1024 * sizeof(char));
+            exec(argv, nr);
         }
         
+
+       // for(int i = 0; i < argc; ++i){
+       //     printf("> arg %d = %s\n", i, argv[i]);}
+        
     
-        pid_t pid;
-        pid = fork();
-        if(pid < 0){
-            return -1;
-        }
-        if(pid == 0){
+       // pid_t pid;
+       // pid = fork();
+       // if(pid < 0){
+       //     return -1;
+       // }
+       // if(pid == 0){
             //child
-            exec(argv, argc );
-            if(strcmp(argv[0], "ls") == 0){
-                execve("/usr/bin/ls", argv, NULL);
-            }
-        }
-        else{
-            wait(NULL);
+       //     exec(argv, nr );
+
+
+            
+       // }
+       // else{
+       //     wait(NULL);
             ///father
+       // }
+
+
+        // se afiseaza mesajul de eroare dupa caz
+        if (error != 0)
+        {
+            error_msg(error);
+            error = 0;
         }
 
         free(argv);
         free(buf);
-    }
+        
+    } 
+    
     return 0;
 }
