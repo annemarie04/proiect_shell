@@ -9,13 +9,15 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <readline/readline.h>
 ///include <readline>
 //#include<readline/readline.h>
 //#include<readline/history.h>
-int error, nr;
+int error= 0, nr;
 char path[1024];
-char *output;
-char **words;
+char *output, *cuv;
+char **argv;
+char comm_line[400];
 
 void create_shell(){
     ///clrscr();
@@ -68,7 +70,7 @@ void error_msg(int error_code)
 
     if(error_code == 9) printf("Invalid number of operands\n");
 
-    if(error_code == 10) printf("Command '%s' not found\n", words[0]);
+    if(error_code == 10) printf("Command '%s' not found\n", argv[0]);
 
 }
 
@@ -303,8 +305,8 @@ void echo()
     // afisam toate cuvintele scrise dupa comanda echo
     for (int i = 1; i < nr; i ++)
     {
-        printf("%s ", words[i]);
-        strcat(output, words[i]);
+        printf("%s ", argv[i]);
+        strcat(output, argv[i]);
         strcat(output, " ");
     }
 
@@ -428,21 +430,10 @@ void exec(char **arg, int nr_args){
 }
 
 
-
-
-
-
-
-
-
-
-
-// mai am de fct in main apelarea fctiei pt msj de eroare + && si ||
-
 int main()
 {
     output = malloc(1024 * sizeof(char));
-    char comm_line[400];
+    
     create_shell();
 
     while(1){
@@ -457,24 +448,25 @@ int main()
         }
 
 
-        ///citirea comenzii
+        
         char* buf = NULL;
         size_t buflen = 0;
-        error=0;
-        char** argv = malloc(sizeof(char*)*4);
+        
+        char** argv = malloc(sizeof(char*)*4);// pt despartirea in cuvinte
+        int nr=0;// nr_cuvinte
 
         printf("> ");
-        getline(&buf, &buflen, stdin);
+        buf = readline("");// citim comanda
         printf("> %s", buf);
         //if(strcmp(buf, "stop\n") == 0){
         //    exit(0);
         //}
 
         //int argc = parsingSpace(buf, argv);
-        int nr=0;
+        
         
         // despartim comanda in cuvinte 
-        char *cuv= malloc(sizeof(char)* 1024);
+
         cuv= strtok(buf, " ");
        
 
@@ -497,7 +489,7 @@ int main()
                     // daca a intampinat o eroare o va ignora
                     // deoarece doar prima comanda corecta va rula
                     error = 0;
-                    nr = 0;// o luam de la capat pt urmatoarea
+                    nr = 0;// o luam de la capat pt urmatoarea comanda
                     cuv = strtok(NULL, " ");
                     continue;
                 }
