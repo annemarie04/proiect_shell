@@ -10,9 +10,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <readline/readline.h>
-///include <readline>
 //#include<readline/readline.h>
-//#include<readline/history.h>
+#include<readline/history.h>
 int error= 0, nr;
 char path[1024];
 char *output, *cuv;
@@ -456,7 +455,7 @@ int main()
         int nr=0;// nr_cuvinte
 
         printf("> ");
-        buf = readline("");// citim comanda
+        fgets(buf, sizeof(buf), stdin); // citim comanda
         printf("> %s", buf);
         //if(strcmp(buf, "stop\n") == 0){
         //    exit(0);
