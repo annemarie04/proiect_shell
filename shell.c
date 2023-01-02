@@ -15,7 +15,7 @@
 int error= 0, nr;
 char path[1024];
 char *output, *cuv;
-char **argv;
+char **argv, **comanda;
 char comm_line[400];
 
 void create_shell(){
@@ -452,10 +452,10 @@ int main()
         size_t buflen = 0;
         
         char** argv = malloc(sizeof(char*)*4);// pt despartirea in cuvinte
-        int nr=0;// nr_cuvinte
+        int nr=0;// nr_cuvinte dintr- o comanda
 
         printf("> ");
-        fgets(buf, sizeof(buf), stdin); // citim comanda
+        getline(&buf, &buflen, stdin); // citim comanda
         printf("> %s", buf);
         //if(strcmp(buf, "stop\n") == 0){
         //    exit(0);
@@ -465,23 +465,16 @@ int main()
         
         
         // despartim comanda in cuvinte 
+        int argc = parsingSpace(buf, argv);
 
-        cuv= strtok(buf, " ");
-       
-
-        while(cuv !=NULL){
-            char* c= malloc(sizeof(char)*1024);
+        for(int i = 0; i < argc; ++i){
+            printf("> arg %d = %s\n", i, argv[i]);
             
-            
-            
-            strcpy(c, cuv);
-            
-
-            if (!strcmp(c, "||"))
+            if (!strcmp(argv[i], "||"))
             {
                 free(output);
                 output = malloc(1024 * sizeof(char));
-                exec(argv, nr);
+                exec(comanda, nr);
 
                 if(error)
                 {
@@ -489,30 +482,30 @@ int main()
                     // deoarece doar prima comanda corecta va rula
                     error = 0;
                     nr = 0;// o luam de la capat pt urmatoarea comanda
-                    cuv = strtok(NULL, " ");
-                    continue;
+                    
+                    //continue;-----------------------------------------------------------------------------------------------
                 }
                 else
                 {
                     // cand gaseste prima comanda care nu da eroare le va ignora pe restul
                    nr = 0;
-                   while(cuv != NULL)
+                   for (j= i+ 1; j<argc; ++j)
                     {
-                        strcpy(c, cuv);
-                        if(!strcmp(c, "&&"))
+                        
+                        if(!strcmp(argv[j], "&&"))
                         {
                             break;
                         }
-                        cuv = strtok(NULL, " ");
+                        
                     }
-                    if (cuv == NULL) error = -1;
+                    if (argv[argc-1] == NULL) error = -1;
                 }
             }
-            else if (!strcmp(c, "&&"))
+            else if (!strcmp(argv[i], "&&"))
             {
                 free(output);
                 output = malloc(1024 * sizeof(char));
-                exec(argv, nr);
+                exec(comanda, nr);
                 
                 // la prima eroare intalnita va opri executia
                 if (error != 0)
@@ -522,13 +515,12 @@ int main()
 
                 nr = 0;
             }
-            else {
-                argv[nr] = c;
-                nr+=1;
-            }
+            else comanda[nr]= argv[i];
 
-            cuv = strtok(NULL, " ");
         }
+       
+
+       
 
         // daca nu am avut o eroare
         // va executa comanda curenta
@@ -536,7 +528,7 @@ int main()
         {
             free(output);
             output = malloc(1024 * sizeof(char));
-            exec(argv, nr);
+            exec(comanda, nr);
         }
         
 
@@ -571,6 +563,7 @@ int main()
 
         free(argv);
         free(buf);
+        free(comanda);
         
     } 
     
