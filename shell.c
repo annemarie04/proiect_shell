@@ -436,6 +436,7 @@ int main()
     create_shell();
 
     while(1){
+        error=0;
         //verificam calea 
         if (getcwd(path, sizeof(path)) != NULL) 
         {
@@ -452,20 +453,29 @@ int main()
         size_t buflen = 0;
         
         char** argv = malloc(sizeof(char*)*4);// pt despartirea in cuvinte
+        char** comanda = malloc(sizeof(char*)*4);
         int nr=0;// nr_cuvinte dintr- o comanda
 
         printf("> ");
         getline(&buf, &buflen, stdin); // citim comanda
         printf("> %s", buf);
-        //if(strcmp(buf, "stop\n") == 0){
-        //    exit(0);
-        //}
-
-        //int argc = parsingSpace(buf, argv);
+        
+        
+        
+        
+        
+        
         
         
         // despartim comanda in cuvinte 
         int argc = parsingSpace(buf, argv);
+        
+        
+        if(!strcmp(argv[0], ""))
+        {
+            printf("\n");
+            continue;
+        }
 
         for(int i = 0; i < argc; ++i){
             printf("> arg %d = %s\n", i, argv[i]);
@@ -489,7 +499,7 @@ int main()
                 {
                     // cand gaseste prima comanda care nu da eroare le va ignora pe restul
                    nr = 0;
-                   for (j= i+ 1; j<argc; ++j)
+                   for (int j= i+ 1; j<argc; ++j)
                     {
                         
                         if(!strcmp(argv[j], "&&"))
@@ -515,7 +525,7 @@ int main()
 
                 nr = 0;
             }
-            else comanda[nr]= argv[i];
+            else comanda[nr++]= argv[i];
 
         }
        
