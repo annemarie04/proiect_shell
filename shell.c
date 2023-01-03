@@ -1,3 +1,5 @@
+///run this-> sudo apt-get install libncurses5-dev libncursesw5-dev
+///compile-> gcc shell.c -o shell -lncurses
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -9,24 +11,164 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <readline/readline.h>
-//#include<readline/readline.h>
-#include<readline/history.h>
-int error= 0, nr;
+#include <ncurses.h>
+#define MAX_HIST 50
+
+int error= 0, nr, hist_count = 0, hist_found_comm;
+bool flag_has_input = false;
 char path[1024];
 char *output, *cuv;
 char **argv, **comanda;
 char comm_line[400];
+char **history;
 
-void create_shell(){
-    ///clrscr();
-    printf("\n--------------------------Proiect Sisteme de Operare - Grupa 251-------------------------\n");
-    printf("\n----------Alpetri Iulita, Messner Annemarie-Beatrix si Patranjel David-George------------\n");
-    char* username = getenv("USER");
-    printf("USER is: @%s\n", username);
-    sleep(1);
+void create_shell();
+int parsingSpace(char *buf, char **argv);
+void error_msg(int error_code, const char *comm);
+void help();
+void hist(const char* command, bool wr, bool save);
+void hcm();
+void myclear();
+void cd(char* folder);
+void pwd();
+void ls();
+void touch(char* file);
+void rm (char* filename);
+void cp(char* file1, char* file2);
+void makedir(char* folder);
+void removedir(char* folder);
+void myecho();
+void exec(char **arg, int nr_args, char *raw_com);
+void colors(int color);
+
+int main()
+{
+    output = malloc(1024 * sizeof(char));
+    history = malloc(sizeof(char*)*MAX_HIST);
+    create_shell();
+
+    while(1){
+        error=0;
+        //verificam calea 
+        if (getcwd(path, sizeof(path)) != NULL){
+            colors(3);
+            printf("SHELL: %s$ ", path);
+            colors(-1);
+        } 
+        else{
+            error = 2;
+        }
+
+        char* buf = NULL;
+        char *aux_buf = NULL;
+        size_t buflen = 0;
+        char** argv = malloc(sizeof(char*)*8);// pt despartirea in cuvinte
+        char** comanda = malloc(sizeof(char*)*8);
+        int nr=0;// nr_cuvinte dintr- o comanda
+
+        if(!flag_has_input){
+            printf("> ");
+            getline(&buf, &buflen, stdin); // citim comanda
+        }else{
+            flag_has_input = false;
+            buf = strdup(history[hist_found_comm]);
+        }
+        hist(buf, false, true);
+        printf("> %s", buf);
+        // despartim comanda in cuvinte 
+        int argc = parsingSpace(buf, argv);
+        
+        if(!strcmp(argv[0], ""))
+        {
+            printf("\n");
+            continue;
+        }
+
+        for(int i = 0; i < argc; ++i){
+            printf("> arg %d = %s\n", i, argv[i]);
+            
+            if (!strcmp(argv[i], "||"))
+            {
+                free(output);
+                output = malloc(1024 * sizeof(char));
+                exec(comanda, nr, buf);
+
+                if(error)
+                {
+                    // daca a intampinat o eroare o va ignora
+                    // deoarece doar prima comanda corecta va rula
+                    error = 0;
+                    nr = 0;// o luam de la capat pt urmatoarea comanda
+                    
+                    //continue;-----------------------------------------------------------------------------------------------
+                }
+                else
+                {
+                    // cand gaseste prima comanda care nu da eroare le va ignora pe restul
+                   nr = 0;
+                   for (int j= i+ 1; j<argc; ++j)
+                    {
+                        
+                        if(!strcmp(argv[j], "&&"))
+                        {
+                            break;
+                        }
+                        
+                    }
+                    if (argv[argc-1] == NULL) error = -1;
+                }
+            }
+            else if (!strcmp(argv[i], "&&"))
+            {
+                free(output);
+                output = malloc(1024 * sizeof(char));
+                exec(comanda, nr, buf);
+                
+                // la prima eroare intalnita va opri executia
+                if (error != 0)
+                {
+                    break;
+                }
+
+                nr = 0;
+            }
+            else comanda[nr++]= argv[i];
+
+        }
+       
+        // daca nu am avut o eroare
+        // va executa comanda curenta
+        if (error == 0){
+            free(output);
+            output = malloc(1024 * sizeof(char));
+            exec(comanda, nr, buf);
+        }
+
+        if(error){
+            error_msg(error, argv[0]);
+            error = 0;
+        }
+
+        free(argv);
+        free(buf);
+        free(comanda);
+    } 
+    
+    return 0;
 }
 
+
+void create_shell(){
+    colors(2);
+    printf("\n--------------------------Proiect Sisteme de Operare - Grupa 251-------------------------\n");
+    printf("\n----------Alpetri Iulita, Messner Annemarie-Beatrix si Patranjel David-George------------\n");
+    colors(-1);
+    colors(1);
+    char* username = getenv("USER");
+    printf("USER is: @%s\n", username);
+    colors(-1);
+    sleep(1);
+}
 int parsingSpace(char *buf, char **argv){
     int i = 0;
     int capacity = 4;
@@ -47,9 +189,8 @@ int parsingSpace(char *buf, char **argv){
     argv[i] = NULL;
     return i;
 }
-
 //afisarea unui mesaj specific unei erori 
-void error_msg(int error_code)
+void error_msg(int error_code, const char *comm)
 {
     if(error_code == 1) printf("No such file or directory\n");
 
@@ -69,19 +210,17 @@ void error_msg(int error_code)
 
     if(error_code == 9) printf("Invalid number of operands\n");
 
-    if(error_code == 10) printf("Command '%s' not found\n", argv[0]);
+    if(error_code == 10) printf("Command '%s' not found\n", comm);
 
 }
-
-
-
 //help- prints the command manual 
 void help()
 {
-    printf("\n -----Welcome to my shell-----\n");
+    printf("\n-------Welcome to my shell------\n");
     printf("\n----------Commands:-------------\n");
     printf("\n\n");
-     printf("history   Prints the command history of the current session. \n");
+    printf("history    Prints the command history of the current session. \n"); ///facut
+    printf("hcm        Use old command by using the arrow keys. \n"); ///facut
 	printf("clear      Clears the terminal. \n");// facut
 	printf("cd         Changes the working directory. \n");// facut
 	printf("pwd        Prints the path of the current directory. \n");// facut
@@ -94,27 +233,87 @@ void help()
     printf("echo       Displays a string that is passed as an argument.\n");
     printf("quit       Exits the shell. \n");
 
-   
+
 }
-  
-
-//// history command
-//void hist()
-//{
-//    printf("%s", history);
-//}
-
-
-
-  void clear()
+void hist(const char* command, bool wr, bool save)
 {
+    if(wr){
+        printf("\n---------Command History--------\n");
+        if(hist_count == 0){
+            printf("No commands yet!\n");
+        }else{
+            for(int i = hist_count - 1; i >= 0; --i){
+                printf("%s", history[i]);
+            }
+        }
+    }
     
+    if(save){
+        bool move_flag = hist_count >= MAX_HIST ? true : false;
+        if(move_flag){
+            free(history[0]);
+            for(int i = 0; i < MAX_HIST - 1; ++i){
+                history[i] = history[i + 1];
+            }
+            hist_count--;
+        }
+
+        history[hist_count++] = strdup(command);
+    }
+    return;
+}
+void hcm()
+{
+    hist_found_comm = hist_count;
+    while(1){
+        initscr();
+        int ch = getch();        
+        if (ch == '\033') { // if the first value is esc
+            getch(); // skip the [
+            switch(getch()) { // the real value
+                case 'A':
+                    // code for arrow up
+                    clear();
+                    if(hist_found_comm == 0){
+                        addstr(history[0]);
+                    }
+                    else if(hist_found_comm > 0){
+                        addstr(history[--hist_found_comm]);
+                    }
+                    ///printf("Up arrow\n");
+                    break;
+                case 'B':
+                    // code for arrow down
+                    clear();
+                    if(hist_found_comm == hist_count - 1){
+                        addstr(history[hist_count - 1]);
+                    }
+                    else if(hist_found_comm < hist_count - 1){
+                        addstr(history[++hist_found_comm]);
+                    }
+                    ///printf("Down arrow\n");
+                    break;
+                default:
+                    clear();
+                    endwin();
+                    break;
+            }
+        }else if(ch == '\n'){
+            clear();
+            endwin();
+            printf("Done\n");
+            printf("Urmatoarea comanda este %s", history[hist_found_comm]);
+            flag_has_input = true;
+            break;
+        }
+    }
+    return;
+}
+void myclear()
+{
 	write(1, "\33[H\33[2J", 7);// ANSI escape code, \33[H- moves the cursor to the top left corner of the screen, 
                                 //33[2J- clears the part of the screen from the cursor to the end of the screen.
 }
-
-
-
 void cd(char* folder)
 {
     //chdir command is a system function which is used to change the current working directory
@@ -124,9 +323,6 @@ void cd(char* folder)
         error = 1;
     }
 }
-
-
-
 void pwd()
 {
     // getcwd(buffer)- obtine current path-ul si il pune in buffer
@@ -143,9 +339,6 @@ void pwd()
         error = 2;
     }
 }
-
-
-
 void ls()
 {
     // se creeaza un proces nou pentru executarea functiei ls din bin
@@ -163,8 +356,6 @@ void ls()
         // status stores the child status
     }
 }
-
-
 void touch(char* file)
 {
    
@@ -183,8 +374,6 @@ void touch(char* file)
     
     fclose(aux);
 }
-
-
 void rm (char* filename)
 {
     // se obtine current path-ul
@@ -209,9 +398,6 @@ void rm (char* filename)
 		error = 8;
 	}
 }
-
-
-
 void cp(char* file1, char* file2)
 {
 	char caract;
@@ -245,9 +431,6 @@ void cp(char* file1, char* file2)
 	fclose(f1);
 	fclose(f2);
 }
-
-
-
 void makedir(char* folder)
 {
    
@@ -271,9 +454,6 @@ void makedir(char* folder)
         printf("%s\n", output);
     }
 }
-
-
-
 void removedir(char* folder)
 {
     
@@ -296,10 +476,7 @@ void removedir(char* folder)
         printf("%s\n", output);
     }
 }
-
-
-
-void echo()
+void myecho()
 {
     // afisam toate cuvintele scrise dupa comanda echo
     for (int i = 1; i < nr; i ++)
@@ -311,12 +488,9 @@ void echo()
 
     printf("\n");
 }
-
-
-
-void exec(char **arg, int nr_args){
+void exec(char **arg, int nr_args, char *raw_com)
+{
     // verificam pt fiecare comanda daca nr de arg este corect
-
     if(!strcmp(arg[0], "help")){
         if(nr_args!=1){
             error= 9;
@@ -324,16 +498,28 @@ void exec(char **arg, int nr_args){
         }
         help();
     }
-    else if(!strcmp(arg[0], "History")){
-        return;// de continuat aici-------------------------------------------
-    }
-    else if(!strcmp(arg[0],"clear")){
-        
+    else if(!strcmp(arg[0], "history")){
         if(nr_args!=1){
             error=9;
             return;
         }
-        clear();
+        hist(raw_com, true, false);
+        return;
+    }
+    else if(!strcmp(arg[0], "hcm")){
+        if(nr_args!=1){
+            error=9;
+            return;
+        }
+        hcm();
+        return;
+    }
+    else if(!strcmp(arg[0],"clear")){
+        if(nr_args!=1){
+            error=9;
+            return;
+        }
+        myclear();
     }
     else if(!strcmp(arg[0], "cd")){
 
@@ -406,7 +592,7 @@ void exec(char **arg, int nr_args){
 
     else if (!strcmp(arg[0], "echo"))
     {
-        echo();
+        myecho();
     }
 
     else if (!strcmp(arg[0], "quit"))
@@ -416,6 +602,11 @@ void exec(char **arg, int nr_args){
             error = 9;
             return;
         }
+        free(argv);
+        free(comanda);
+        free(history);
+
+        ///endwin();
         exit(0);
     }
     else
@@ -423,159 +614,30 @@ void exec(char **arg, int nr_args){
         error = 10;
         return;
     }
-    
-
-
 }
 
+void colors(int color){
+    ///Colorarea textului folosind ANSI
+    switch(color){
+        case 1:
+            ///Red
+            printf("\033[1;31m");
+            break;
+        case 2:
+            ///Yellow
+              printf("\033[1;33m");
 
-int main()
-{
-    output = malloc(1024 * sizeof(char));
-    
-    create_shell();
-
-    while(1){
-        error=0;
-        //verificam calea 
-        if (getcwd(path, sizeof(path)) != NULL) 
-        {
-            printf("SHELL: %s$ ", path);
-        } 
-        else 
-        {
-            error = 2;
-        }
-
-
-        
-        char* buf = NULL;
-        size_t buflen = 0;
-        
-        char** argv = malloc(sizeof(char*)*4);// pt despartirea in cuvinte
-        char** comanda = malloc(sizeof(char*)*4);
-        int nr=0;// nr_cuvinte dintr- o comanda
-
-        printf("> ");
-        getline(&buf, &buflen, stdin); // citim comanda
-        printf("> %s", buf);
-        
-        
-        
-        
-        
-        
-        
-        
-        // despartim comanda in cuvinte 
-        int argc = parsingSpace(buf, argv);
-        
-        
-        if(!strcmp(argv[0], ""))
-        {
-            printf("\n");
-            continue;
-        }
-
-        for(int i = 0; i < argc; ++i){
-            printf("> arg %d = %s\n", i, argv[i]);
-            
-            if (!strcmp(argv[i], "||"))
-            {
-                free(output);
-                output = malloc(1024 * sizeof(char));
-                exec(comanda, nr);
-
-                if(error)
-                {
-                    // daca a intampinat o eroare o va ignora
-                    // deoarece doar prima comanda corecta va rula
-                    error = 0;
-                    nr = 0;// o luam de la capat pt urmatoarea comanda
-                    
-                    //continue;-----------------------------------------------------------------------------------------------
-                }
-                else
-                {
-                    // cand gaseste prima comanda care nu da eroare le va ignora pe restul
-                   nr = 0;
-                   for (int j= i+ 1; j<argc; ++j)
-                    {
-                        
-                        if(!strcmp(argv[j], "&&"))
-                        {
-                            break;
-                        }
-                        
-                    }
-                    if (argv[argc-1] == NULL) error = -1;
-                }
-            }
-            else if (!strcmp(argv[i], "&&"))
-            {
-                free(output);
-                output = malloc(1024 * sizeof(char));
-                exec(comanda, nr);
-                
-                // la prima eroare intalnita va opri executia
-                if (error != 0)
-                {
-                    break;
-                }
-
-                nr = 0;
-            }
-            else comanda[nr++]= argv[i];
-
-        }
-       
-
-       
-
-        // daca nu am avut o eroare
-        // va executa comanda curenta
-        if (error == 0)
-        {
-            free(output);
-            output = malloc(1024 * sizeof(char));
-            exec(comanda, nr);
-        }
-        
-
-       // for(int i = 0; i < argc; ++i){
-       //     printf("> arg %d = %s\n", i, argv[i]);}
-        
-    
-       // pid_t pid;
-       // pid = fork();
-       // if(pid < 0){
-       //     return -1;
-       // }
-       // if(pid == 0){
-            //child
-       //     exec(argv, nr );
-
-
-            
-       // }
-       // else{
-       //     wait(NULL);
-            ///father
-       // }
-
-
-        // se afiseaza mesajul de eroare dupa caz
-        if (error != 0)
-        {
-            error_msg(error);
-            error = 0;
-        }
-
-        free(argv);
-        free(buf);
-        free(comanda);
-        
-    } 
-    
-    return 0;
+            break;
+        case 3:
+            ///Green
+            printf("\033[0;32m");
+            break;
+        case 4:
+            ///Blue
+            printf("\033[0;34m");
+            break;
+        default:
+            ///reset
+            printf("\033[0m");
+    }
 }
