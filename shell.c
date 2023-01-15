@@ -18,9 +18,11 @@ int error= 0, nr, hist_count = 0, hist_found_comm;
 bool flag_has_input = false;
 char path[1024];
 char *output, *cuv;
+char *output_pipe;
 char **argv, **comanda;
 char comm_line[400];
 char **history;
+int does_pipe = 0;
 
 void create_shell();
 int parsingSpace(char *buf, char **argv);
@@ -40,10 +42,15 @@ void removedir(char* folder);
 void myecho();
 void exec(char **arg, int nr_args, char *raw_com);
 void colors(int color);
+void grep(char* string, char* file);
+void grep_pipe_echo(char* string);
+void grep_pipe(char* file, char* string);
+void cat(char* file);
 
 int main()
 {
     output = malloc(1024 * sizeof(char));
+    output_pipe = malloc(2048 * sizeof(char));
     history = malloc(sizeof(char*)*MAX_HIST);
     create_shell();
 
@@ -85,6 +92,7 @@ int main()
         }
 
         for(int i = 0; i < argc; ++i){
+            does_pipe = 0;
             printf("> arg %d = %s\n", i, argv[i]);
             
             if (!strcmp(argv[i], "||"))
@@ -132,9 +140,27 @@ int main()
 
                 nr = 0;
             }
+            else if(!strcmp(argv[i], "|")) {
+                does_pipe = 1;
+                if(!strcmp(argv[0], "cat")) {
+                    continue;
+                }
+                free(output);
+                output = malloc(1024 * sizeof(char));
+                exec(comanda, nr, buf);
+                
+                // la prima eroare intalnita va opri executia
+                if (error != 0)
+                {
+                    break;
+                }
+
+                nr = 0;
+            }
             else comanda[nr++]= argv[i];
 
         }
+        does_pipe = 0;
        
         // daca nu am avut o eroare
         // va executa comanda curenta
@@ -157,7 +183,7 @@ int main()
     return 0;
 }
 
-
+// START SHELL
 void create_shell(){
     colors(2);
     printf("\n--------------------------Proiect Sisteme de Operare - Grupa 251-------------------------\n");
@@ -169,6 +195,8 @@ void create_shell(){
     colors(-1);
     sleep(1);
 }
+
+// despartirea unei comenzi in cuvinte
 int parsingSpace(char *buf, char **argv){
     int i = 0;
     int capacity = 4;
@@ -189,6 +217,7 @@ int parsingSpace(char *buf, char **argv){
     argv[i] = NULL;
     return i;
 }
+
 //afisarea unui mesaj specific unei erori 
 void error_msg(int error_code, const char *comm)
 {
@@ -213,7 +242,8 @@ void error_msg(int error_code, const char *comm)
     if(error_code == 10) printf("Command '%s' not found\n", comm);
 
 }
-//help- prints the command manual 
+
+//help - prints the command manual 
 void help()
 {
     printf("\n-------Welcome to my shell------\n");
@@ -232,20 +262,24 @@ void help()
 	printf("removedir  Deletes an already existing directory. \n");// facut
     printf("echo       Displays a string that is passed as an argument.\n");
     printf("quit       Exits the shell. \n");
-
-
+    printf("%s---", output);
 }
+
+//history - prints the command history of the current session
 void hist(const char* command, bool wr, bool save)
 {
     if(wr){
-        printf("\n---------Command History--------\n");
-        if(hist_count == 0){
-            printf("No commands yet!\n");
-        }else{
-            for(int i = hist_count - 1; i >= 0; --i){
-                printf("%s", history[i]);
+        if(!does_pipe)
+             printf("\n---------Command History--------\n");
+        if(hist_count == 0)
+            if(!does_pipe)
+                printf("No commands yet!\n");
+        else
+            for(int i = hist_count - 1; i >= 0; --i) {
+                strcat(output_pipe, history[i]);
+                if(!does_pipe)
+                    printf("%s", history[i]);
             }
-        }
     }
     
     if(save){
@@ -262,6 +296,8 @@ void hist(const char* command, bool wr, bool save)
     }
     return;
 }
+
+//hcm - use old command by using the arrow keys 
 void hcm()
 {
     hist_found_comm = hist_count;
@@ -309,11 +345,15 @@ void hcm()
     }
     return;
 }
+
+//clear - clears the terminal
 void myclear()
 {
 	write(1, "\33[H\33[2J", 7);// ANSI escape code, \33[H- moves the cursor to the top left corner of the screen, 
                                 //33[2J- clears the part of the screen from the cursor to the end of the screen.
 }
+
+//cd - changes the working directory
 void cd(char* folder)
 {
     //chdir command is a system function which is used to change the current working directory
@@ -323,6 +363,7 @@ void cd(char* folder)
         error = 1;
     }
 }
+//pwd - prints the path of the current directory
 void pwd()
 {
     // getcwd(buffer)- obtine current path-ul si il pune in buffer
@@ -339,6 +380,8 @@ void pwd()
         error = 2;
     }
 }
+
+//  ls - lists all files and directories in the current directory
 void ls()
 {
     // se creeaza un proces nou pentru executarea functiei ls din bin
@@ -356,6 +399,8 @@ void ls()
         // status stores the child status
     }
 }
+
+//touch - creates a new empty file
 void touch(char* file)
 {
    
@@ -374,6 +419,8 @@ void touch(char* file)
     
     fclose(aux);
 }
+
+//rm - deletes a file
 void rm (char* filename)
 {
     // se obtine current path-ul
@@ -398,6 +445,8 @@ void rm (char* filename)
 		error = 8;
 	}
 }
+
+//cp - copies the contents of a file to another file
 void cp(char* file1, char* file2)
 {
 	char caract;
@@ -431,6 +480,8 @@ void cp(char* file1, char* file2)
 	fclose(f1);
 	fclose(f2);
 }
+
+//makedir - creates a new directory
 void makedir(char* folder)
 {
    
@@ -454,6 +505,8 @@ void makedir(char* folder)
         printf("%s\n", output);
     }
 }
+
+//removedir - deletes a directory
 void removedir(char* folder)
 {
     
@@ -476,6 +529,8 @@ void removedir(char* folder)
         printf("%s\n", output);
     }
 }
+
+//echo - prints the given arguments
 void myecho()
 {
     // afisam toate cuvintele scrise dupa comanda echo
@@ -488,6 +543,114 @@ void myecho()
 
     printf("\n");
 }
+
+// cat - prints the contents of a file
+void cat(char* file) {
+    pid_t pid = fork();
+    if(pid == 0) {
+        char* arguments[] = {"cat", file, NULL};
+        execve("/bin/cat", arguments, NULL);
+        kill(getpid(), 0); // stop the process
+    } else {
+        int status; // status stores the child status
+        waitpid(pid, &status, 0); // wait for child to finish
+    }
+    return;
+}
+
+//grep - searches for a pattern in a file
+void grep(char* string, char* file) {
+    pid_t pid = fork();
+    if(pid == 0) {
+        char* arguments[] = {"grep", string, file, NULL};
+        execve("/bin/grep", arguments, NULL);
+        kill(getpid(), 0); // stop the process
+    } else {
+        int status; // status stores the child status
+        waitpid(pid, &status, 0); // wait for child to finish
+    }
+    return;
+}
+
+//echo grep pipe
+void grep_pipe_echo(char* string) {
+    pid_t pid1, pid2;
+    int fd[2];
+    int status;
+    char* mass_1[] = {"echo", output_pipe, NULL};
+    char* mass_2[] = {"grep", "-a", string,  NULL};
+    pipe(fd);
+    if(pipe(fd) == -1) {
+        perror(NULL);
+        return;
+    }
+    pid1 = fork();
+    if(pid1 == 0) {
+        dup2(fd[1], 1);
+        close(fd[0]);
+        execvp(mass_1[0], mass_1);
+        exit(1);
+    }
+
+    pid2 = fork();
+    if(pid2 == 0) {
+        dup2(fd[0], 0);
+        close(fd[1]);
+        execvp(mass_2[0], mass_2);
+        exit(1);
+    }
+    
+
+    close(fd[0]);
+    close(fd[1]);
+    waitpid(pid1, &status, WUNTRACED);
+    waitpid(pid2, &status, WUNTRACED);
+
+    memset(output_pipe, 0, sizeof(output_pipe));
+
+    return;
+}
+
+// grep cat pipe
+void grep_pipe(char* file, char* string) {
+     pid_t pid1, pid2;
+    int fd[2];
+    int status;
+    char* mass_1[] = {"cat", file, NULL};
+    char* mass_2[] = {"grep", string,  NULL};
+    pipe(fd);
+    if(pipe(fd) == -1) {
+        perror(NULL);
+        return;
+    }
+    pid1 = fork();
+    if(pid1 == 0) {
+        dup2(fd[1], 1);
+        close(fd[0]);
+        execvp(mass_1[0], mass_1);
+        exit(1);
+    }
+
+    pid2 = fork();
+    if(pid2 == 0) {
+        dup2(fd[0], 0);
+        close(fd[1]);
+        execvp(mass_2[0], mass_2);
+        exit(1);
+    }
+    
+
+    close(fd[0]);
+    close(fd[1]);
+    waitpid(pid1, &status, WUNTRACED);
+    waitpid(pid2, &status, WUNTRACED);
+
+    memset(output_pipe, 0, sizeof(output_pipe));
+
+    return;
+}
+
+// executa comanda
 void exec(char **arg, int nr_args, char *raw_com)
 {
     // verificam pt fiecare comanda daca nr de arg este corect
@@ -595,6 +758,25 @@ void exec(char **arg, int nr_args, char *raw_com)
         myecho();
     }
 
+    else if(!strcmp(arg[0], "grep")) {
+        if(nr_args == 3) 
+            grep(arg[1], arg[2]);
+        if(nr_args == 2)
+            grep_pipe_echo(arg[1]);
+    }
+
+    else if(!strcmp(arg[0], "cat")) {
+        if(arg[2] != NULL && (!strcmp(arg[2], "grep"))) {
+            grep_pipe(arg[1], arg[3]);
+            return;
+        }
+        if(nr_args != 2) {
+            error = 9;
+            return;
+        }
+        cat(arg[1]);
+    }
+
     else if (!strcmp(arg[0], "quit"))
     {
         if (nr_args != 1)
@@ -605,7 +787,7 @@ void exec(char **arg, int nr_args, char *raw_com)
         free(argv);
         free(comanda);
         free(history);
-
+        free(output_pipe);
         ///endwin();
         exit(0);
     }
@@ -616,6 +798,7 @@ void exec(char **arg, int nr_args, char *raw_com)
     }
 }
 
+// colorizarea textului
 void colors(int color){
     ///Colorarea textului folosind ANSI
     switch(color){
