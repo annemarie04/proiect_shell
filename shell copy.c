@@ -81,11 +81,11 @@ int main()
             buf = strdup(history[hist_found_comm]);
         }
         hist(buf, false, true);
-        printf("> %s", buf);
+        //printf("> %s", buf);
         // despartim comanda in cuvinte 
         int argc = parsingSpace(buf, argv);
         
-        if(!strcmp(argv[0], ""))
+        if(argv[0] == NULL)
         {
             printf("\n");
             continue;
@@ -93,7 +93,7 @@ int main()
 
         for(int i = 0; i < argc; ++i){
             does_pipe = 0;
-            printf("> arg %d = %s\n", i, argv[i]);
+            //printf("> arg %d = %s\n", i, argv[i]);
             
             if (!strcmp(argv[i], "||"))
             {
@@ -140,13 +140,9 @@ int main()
 
                 nr = 0;
             }
-            else if (!strcmp(argv[i], "|"))
-            {
+            else if(!strcmp(argv[i], "|")) {
                 does_pipe = 1;
-                if(!strcmp(argv[0], "cat")){
-                    continue;
-                }
-                if(!strcmp(argv[0], "ls")){
+                if(!strcmp(argv[0], "cat")) {
                     continue;
                 }
                 free(output);
@@ -187,7 +183,7 @@ int main()
     return 0;
 }
 
-
+// START SHELL
 void create_shell(){
     colors(2);
     printf("\n--------------------------Proiect Sisteme de Operare - Grupa 251-------------------------\n");
@@ -199,6 +195,8 @@ void create_shell(){
     colors(-1);
     sleep(1);
 }
+
+// despartirea unei comenzi in cuvinte
 int parsingSpace(char *buf, char **argv){
     int i = 0;
     int capacity = 4;
@@ -219,6 +217,7 @@ int parsingSpace(char *buf, char **argv){
     argv[i] = NULL;
     return i;
 }
+
 //afisarea unui mesaj specific unei erori 
 void error_msg(int error_code, const char *comm)
 {
@@ -243,7 +242,8 @@ void error_msg(int error_code, const char *comm)
     if(error_code == 10) printf("Command '%s' not found\n", comm);
 
 }
-//help- prints the command manual 
+
+//help - prints the command manual 
 void help()
 {
     printf("\n-------Welcome to my shell------\n");
@@ -262,23 +262,27 @@ void help()
 	printf("removedir  Deletes an already existing directory. \n");// facut
     printf("echo       Displays a string that is passed as an argument.\n");
     printf("quit       Exits the shell. \n");
+    printf("%s---", output);
 }
 
+//history - prints the command history of the current session
 void hist(const char* command, bool wr, bool save)
 {
     if(wr){
         if(!does_pipe)
-            printf("\n---------Command History--------\n");
-        if(hist_count == 0){
+             printf("\n---------Command History--------\n");
+        if(hist_count == 0) {
             if(!does_pipe)
                 printf("No commands yet!\n");
-        }else{
-            for(int i = hist_count - 1; i >= 0; --i){
+        }
+        else {
+                for(int i = hist_count - 1; i >= 0; --i) {
                 strcat(output_pipe, history[i]);
                 if(!does_pipe)
                     printf("%s", history[i]);
             }
         }
+            
     }
     
     if(save){
@@ -292,9 +296,12 @@ void hist(const char* command, bool wr, bool save)
         }
 
         history[hist_count++] = strdup(command);
+
     }
     return;
 }
+
+//hcm - use old command by using the arrow keys 
 void hcm()
 {
     hist_found_comm = hist_count;
@@ -342,11 +349,15 @@ void hcm()
     }
     return;
 }
+
+//clear - clears the terminal
 void myclear()
 {
 	write(1, "\33[H\33[2J", 7);// ANSI escape code, \33[H- moves the cursor to the top left corner of the screen, 
                                 //33[2J- clears the part of the screen from the cursor to the end of the screen.
 }
+
+//cd - changes the working directory
 void cd(char* folder)
 {
     //chdir command is a system function which is used to change the current working directory
@@ -356,6 +367,7 @@ void cd(char* folder)
         error = 1;
     }
 }
+//pwd - prints the path of the current directory
 void pwd()
 {
     // getcwd(buffer)- obtine current path-ul si il pune in buffer
@@ -364,16 +376,16 @@ void pwd()
 
     if (getcwd(path, sizeof(path))) 
     {
-
         strcat(output, path);
         printf("%s\n", output);
-
     } 
     else 
     {
         error = 2;
     }
 }
+
+//  ls - lists all files and directories in the current directory
 void ls()
 {
     // se creeaza un proces nou pentru executarea functiei ls din bin
@@ -391,6 +403,8 @@ void ls()
         // status stores the child status
     }
 }
+
+//touch - creates a new empty file
 void touch(char* file)
 {
    
@@ -409,6 +423,8 @@ void touch(char* file)
     
     fclose(aux);
 }
+
+//rm - deletes a file
 void rm (char* filename)
 {
     // se obtine current path-ul
@@ -433,6 +449,8 @@ void rm (char* filename)
 		error = 8;
 	}
 }
+
+//cp - copies the contents of a file to another file
 void cp(char* file1, char* file2)
 {
 	char caract;
@@ -466,6 +484,8 @@ void cp(char* file1, char* file2)
 	fclose(f1);
 	fclose(f2);
 }
+
+//makedir - creates a new directory
 void makedir(char* folder)
 {
    
@@ -489,6 +509,8 @@ void makedir(char* folder)
         printf("%s\n", output);
     }
 }
+
+//removedir - deletes a directory
 void removedir(char* folder)
 {
     
@@ -511,6 +533,8 @@ void removedir(char* folder)
         printf("%s\n", output);
     }
 }
+
+//echo - prints the given arguments
 void myecho()
 {
     // afisam toate cuvintele scrise dupa comanda echo
@@ -524,165 +548,113 @@ void myecho()
     printf("\n");
 }
 
-
-void cat(char* file)
-{
-    pid_t pid = fork ();
-    if (pid == 0)
-    {
-        char *arguments[] = {"cat", file, NULL};
-        execve ("/bin/cat", arguments , NULL);
-        kill(getpid(), 0);// opreste procesul
-    }
-    else
-    {
-        int status;
-        waitpid(pid, &status, 0);// asteapta sa termine copilul cu pidul pid executia
-        // status stores the child status
+// cat - prints the contents of a file
+void cat(char* file) {
+    pid_t pid = fork();
+    if(pid == 0) {
+        char* arguments[] = {"cat", file, NULL};
+        execve("/bin/cat", arguments, NULL);
+        kill(getpid(), 0); // stop the process
+    } else {
+        int status; // status stores the child status
+        waitpid(pid, &status, 0); // wait for child to finish
     }
     return;
 }
 
-void grep(char* string, char* file)
-{
-    pid_t pid = fork ();
-    if (pid == 0)
-    {
-        char *arguments[] = {"grep", string, file, NULL};
-        execve ("/bin/grep", arguments , NULL);
-        kill(getpid(), 0);// opreste procesul
-    }
-    else
-    {
-        int status;
-        waitpid(pid, &status, 0);// asteapta sa termine copilul cu pidul pid executia
-        // status stores the child status
+//grep - searches for a pattern in a file
+void grep(char* string, char* file) {
+    pid_t pid = fork();
+    if(pid == 0) {
+        char* arguments[] = {"grep", string, file, NULL};
+        execve("/bin/grep", arguments, NULL);
+        kill(getpid(), 0); // stop the process
+    } else {
+        int status; // status stores the child status
+        waitpid(pid, &status, 0); // wait for child to finish
     }
     return;
 }
 
-void grep_pipe_echo(char* string)
-{
-    pid_t pid_1, pid_2;
+//echo grep pipe
+void grep_pipe_echo(char* string) {
+    pid_t pid1, pid2;
     int fd[2];
     int status;
-    char *mass_1[] = {"echo", output_pipe, NULL};
-    char *mass_2[] = {"grep", "-a", string, NULL};
+    char* mass_1[] = {"echo", output_pipe, NULL};
+    char* mass_2[] = {"grep", "-a", string,  NULL};
     pipe(fd);
-      if(pipe(fd) == -1)
-    {
+    if(pipe(fd) == -1) {
         perror(NULL);
         return;
     }
-    pid_1 = fork();
-    if (pid_1 == 0)
-    {
+    pid1 = fork();
+    if(pid1 == 0) {
         dup2(fd[1], 1);
         close(fd[0]);
         execvp(mass_1[0], mass_1);
         exit(1);
     }
-    pid_2 = fork();
-    if (pid_2 == 0)
-    {
+
+    pid2 = fork();
+    if(pid2 == 0) {
         dup2(fd[0], 0);
         close(fd[1]);
         execvp(mass_2[0], mass_2);
         exit(1);
     }
     
+
     close(fd[0]);
     close(fd[1]);
-    waitpid(pid_1, &status, WUNTRACED);
-    waitpid(pid_2, &status, WUNTRACED);
+    waitpid(pid1, &status, WUNTRACED);
+    waitpid(pid2, &status, WUNTRACED);
 
-    memset(output_pipe, 0, sizeof output_pipe);
+    memset(output_pipe, 0, sizeof(output_pipe));
 
     return;
 }
 
-
-void grep_pipe(char* file, char* string)
-{
-    pid_t pid_1, pid_2;
+// grep cat pipe
+void grep_pipe(char* file, char* string) {
+     pid_t pid1, pid2;
     int fd[2];
     int status;
-    char *mass_1[] = {"cat", file, NULL};
-    char *mass_2[] = {"grep", string, NULL};
+    char* mass_1[] = {"cat", file, NULL};
+    char* mass_2[] = {"grep", string,  NULL};
     pipe(fd);
-      if(pipe(fd) == -1)
-    {
+    if(pipe(fd) == -1) {
         perror(NULL);
         return;
     }
-    pid_1 = fork();
-    if (pid_1 == 0)
-    {
+    pid1 = fork();
+    if(pid1 == 0) {
         dup2(fd[1], 1);
         close(fd[0]);
         execvp(mass_1[0], mass_1);
         exit(1);
     }
-    pid_2 = fork();
-    if (pid_2 == 0)
-    {
+
+    pid2 = fork();
+    if(pid2 == 0) {
         dup2(fd[0], 0);
         close(fd[1]);
         execvp(mass_2[0], mass_2);
         exit(1);
     }
     
+
     close(fd[0]);
     close(fd[1]);
-    waitpid(pid_1, &status, WUNTRACED);
-    waitpid(pid_2, &status, WUNTRACED);
+    waitpid(pid1, &status, WUNTRACED);
+    waitpid(pid2, &status, WUNTRACED);
 
-    memset(output_pipe, 0, sizeof output_pipe);
+    memset(output_pipe, 0, sizeof(output_pipe));
 
     return;
 }
 
-// grep_pipe_ls
-void grep_pipe_ls(char* string)
-{
-    pid_t pid_1, pid_2;
-    int fd[2];
-    int status;
-    char *mass_1[] = {"ls", NULL};
-    char *mass_2[] = {"grep", "-a", string, NULL};
-    pipe(fd);
-      if(pipe(fd) == -1)
-    {
-        perror(NULL);
-        return;
-    }
-    pid_1 = fork();
-    if (pid_1 == 0)
-    {
-        dup2(fd[1], 1);
-        close(fd[0]);
-        execvp(mass_1[0], mass_1);
-        exit(1);
-    }
-    pid_2 = fork();
-    if (pid_2 == 0)
-    {
-        dup2(fd[0], 0);
-        close(fd[1]);
-        execvp(mass_2[0], mass_2);
-        exit(1);
-    }
-    
-    close(fd[0]);
-    close(fd[1]);
-    waitpid(pid_1, &status, WUNTRACED);
-    waitpid(pid_2, &status, WUNTRACED);
-
-    memset(output_pipe, 0, sizeof output_pipe);
-
-    return;
-}
-
+// executa comanda
 void exec(char **arg, int nr_args, char *raw_com)
 {
     // verificam pt fiecare comanda daca nr de arg este corect
@@ -733,21 +705,11 @@ void exec(char **arg, int nr_args, char *raw_com)
         pwd();
     }
     else if(!strcmp(arg[0], "ls")){
-        if(arg[1] != NULL && (!strcmp(arg[1], "grep"))) // verify if the second argument is grep
-        {
-            if(nr_args != 2) // verify if the number of arguments is correct
-            {
-                error = 9;
-                return;
-            }
-            grep_pipe_ls(arg[2]); // call the function grep_pipe_ls
+        if(nr_args!=1){
+            error=9;
             return;
         }
-        if(nr_args != 1){
-            error = 9;
-            return;
-        }
-        ls(); 
+        ls();
     }
     else if (!strcmp(arg[0], "touch"))
     {
@@ -800,26 +762,19 @@ void exec(char **arg, int nr_args, char *raw_com)
         myecho();
     }
 
-    else if (!strcmp(arg[0], "grep"))
-    {
-
-        if(nr_args == 3)
+    else if(!strcmp(arg[0], "grep")) {
+        if(nr_args == 3) 
             grep(arg[1], arg[2]);
-        if(nr_args == 2){
+        if(nr_args == 2)
             grep_pipe_echo(arg[1]);
-        }
-        
     }
-    else if(!strcmp(arg[0], "cat"))
-    {
 
-        if(arg[2] != NULL && (!strcmp(arg[2], "grep"))) 
-        {
+    else if(!strcmp(arg[0], "cat")) {
+        if(arg[2] != NULL && (!strcmp(arg[2], "grep"))) {
             grep_pipe(arg[1], arg[3]);
             return;
         }
-        if(nr_args != 2)
-        {
+        if(nr_args != 2) {
             error = 9;
             return;
         }
@@ -835,6 +790,9 @@ void exec(char **arg, int nr_args, char *raw_com)
         }
         free(argv);
         free(comanda);
+        for(int i = 0; i < hist_count; ++i){
+                free(history[i]);
+        }
         free(history);
         free(output_pipe);
         ///endwin();
@@ -847,6 +805,7 @@ void exec(char **arg, int nr_args, char *raw_com)
     }
 }
 
+// colorizarea textului
 void colors(int color){
     ///Colorarea textului folosind ANSI
     switch(color){
