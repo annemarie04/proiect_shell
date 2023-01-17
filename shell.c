@@ -44,10 +44,10 @@ void cp(char* file1, char* file2);
 void makedir(char* folder);
 void removedir(char* folder);
 void myecho();
+void grep_pipe_echo(char* string);
 void exec(char **arg, int nr_args, char *raw_com);
 void colors(int color);
 void grep(char* string, char* file);
-void grep_pipe_echo(char* string);
 void grep_pipe(char* file, char* string);
 void grep_pipe_ls(char* string);
 void cat(char* file);
@@ -101,7 +101,7 @@ int main()
             ///for null command
             continue;
         }
-
+        bool flag_or = true; ///flag for 'or' operator
         for(int i = 0; i < argc; ++i){
             does_pipe = 0;
             //printf("> arg %d = %s\n", i, argv[i]);
@@ -125,8 +125,10 @@ int main()
                     nr = 0;
                     while(strcmp(argv[i], "&&")){
                         ++i;
-                        if(argv[i] == NULL)
-                            break;
+                        if(argv[i] == NULL) {
+                            flag_or = false;
+                            break;  
+                        }
                     }
                 }
             }
@@ -172,8 +174,8 @@ int main()
         }
         does_pipe = 0;
        
-        // if we dont have errors we execute the command
-        if (error == 0){
+        // if we don't have errors we execute the command
+        if (error == 0 && flag_or){
             free(output);
             output = malloc(1024 * sizeof(char));
             exec(comanda, nr, buf);
@@ -617,61 +619,45 @@ void grep(char* string, char* file) {
     }
     return;
 }
-
-//echo grep pipe
-void grep_pipe_echo(char* string) {
-    pid_t pid1, pid2;
+void grep_pipe_echo(char* string)
+{
+    pid_t pid_1, pid_2;
     int fd[2];
     int status;
-    char* mass_1[] = {"echo", output_pipe, NULL};
-    char* mass_2[] = {"grep", "-a", string,  NULL};
-
-    ///int pipe(int pipefd[2])
-    ///creates an unidirectional pipe
-    ///pipefd[0] - read from pipe end, pipefd[1] - write to pipe end
-    ///returns -1 on error
+    char *mass_1[] = {"echo", output_pipe, NULL};
+    char *mass_2[] = {"grep", "-a", string, NULL};
     pipe(fd);
-    if(pipe(fd) == -1) {
+      if(pipe(fd) == -1)
+    {
         perror(NULL);
         return;
     }
-    pid1 = fork();
-    if(pid1 == 0) {
-        ///int dup2(int oldfd, int newfd)
-        ///makes newfd be a copy of oldfd
-        ///we do this so that the write fd is the standard one
+    pid_1 = fork();
+    if (pid_1 == 0)
+    {
         dup2(fd[1], 1);
-        ///we close the read end
         close(fd[0]);
-        ///int execvp(const char *file, char *const argv[]);
-        ///just like execve, but without the absolute path
         execvp(mass_1[0], mass_1);
+        exit(1);
     }
-
-    pid2 = fork();
-    if(pid2 == 0) {
-        ///int dup2(int oldfd, int newfd)
-        ///makes newfd be a copy of oldfd
-        ///we do this so that the read fd is the standard one
+    pid_2 = fork();
+    if (pid_2 == 0)
+    {
         dup2(fd[0], 0);
-        ///we read the write end
         close(fd[1]);
-        ///int execvp(const char *file, char *const argv[]);
-        ///just like execve, but without the absolute path
         execvp(mass_2[0], mass_2);
+        exit(1);
     }
     
-
     close(fd[0]);
     close(fd[1]);
-    waitpid(pid1, &status, WUNTRACED);
-    waitpid(pid2, &status, WUNTRACED);
+    waitpid(pid_1, &status, WUNTRACED);
+    waitpid(pid_2, &status, WUNTRACED);
 
-    memset(output_pipe, 0, sizeof(output_pipe));
+    memset(output_pipe, 0, sizeof output_pipe);
 
     return;
 }
-
 // grep cat pipe
 void grep_pipe(char* file, char* string) {
     pid_t pid1, pid2;
@@ -714,7 +700,13 @@ void grep_pipe(char* file, char* string) {
         ///just like execve, but without the absolute path
         execvp(mass_2[0], mass_2);
     }
-    
+
+    close(fd[0]);
+    close(fd[1]);
+    waitpid(pid1, &status, WUNTRACED);
+    waitpid(pid2, &status, WUNTRACED);
+
+    return;
 }
 
 // ls grep pipe
@@ -893,8 +885,9 @@ void exec(char **arg, int nr_args, char *raw_com)
     else if(!strcmp(arg[0], "grep")) {
         if(nr_args == 3) 
             grep(arg[1], arg[2]);
-        if(nr_args == 2)
+        if(nr_args == 2){
             grep_pipe_echo(arg[1]);
+        }
     }
 
     else if(!strcmp(arg[0], "cat")) {
